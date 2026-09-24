@@ -26,10 +26,18 @@ class Linear(Module):
                 not zeros (see "Weight initialization" below).
             self.b (np.ndarray): bias vector, shape
                 (out_features,). Initialized to zero.
+            self.dW (np.ndarray): gradient buffer for self.W, same
+                shape as self.W. Pre-allocated to zeros here so
+                backward can write into it in place.
+            self.db (np.ndarray): gradient buffer for self.b, same
+                shape as self.b, pre-allocated so that backward can
+                write to it.
         """
-        xavier_bound = np.sqrt(6 / (in_features + out_features))
-        self.W = np.random.uniform(-xavier_bound, xavier_bound, size=(in_features, out_features))
+        xavier = np.sqrt(6 / (in_features + out_features))
+        self.W = np.random.uniform(-xavier, xavier, size=(in_features, out_features))
         self.b = np.zeros(out_features)
+        self.dW = np.zeros_like(self.W)
+        self.db = np.zeros_like(self.b)
 
     def forward(self, x: np.ndarray) -> np.ndarray:
         """Compute this layer's output for a batch of inputs.
@@ -40,8 +48,8 @@ class Linear(Module):
         Returns:
             np.ndarray: output, shape (batch_size, out_features).
         """
-        forwardpass = x @ self.W + self.b
-        return forwardpass
+        self.x = x
+        return x @ self.W + self.b
 
     def backward(self, grad_output: np.ndarray) -> np.ndarray:
         """Compute gradients given the upstream gradient.
@@ -62,8 +70,9 @@ class Linear(Module):
             self.db (np.ndarray): gradient of the loss with
                 respect to self.b, same shape as self.b.
         """
-        # TODO: implement in a later chapter -- leave as-is
-        pass
+        self.dW[...] = self.x.T @ grad_output
+        self.db[...] = np.sum(grad_output, axis=0)
+        return grad_output @ self.W.T
 
     def parameters(self) -> list[tuple[np.ndarray, np.ndarray]]:
         """Return this layer's learnable parameters.
@@ -73,5 +82,4 @@ class Linear(Module):
                 (parameter, gradient) --
                 [(self.W, self.dW), (self.b, self.db)].
         """
-        # TODO: implement in a later chapter -- leave as-is
-        pass
+        return [(self.W, self.dW), (self.b, self.db)]

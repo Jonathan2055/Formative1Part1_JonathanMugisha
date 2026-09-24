@@ -1,80 +1,56 @@
-# Formative 1, Part 1 — Building a Neural Network from Scratch in NumPy
+# Formative 1 Part 1 — Neural Network from Scratch
 
-Read `guide.pdf` first. It walks you, chapter by chapter, from one neuron to a
-full training loop. This folder is your starting point.
+A single-layer neural network (`Linear → activation → loss`) implemented from scratch in
+NumPy, with its own forward pass, backward pass (backpropagation), and SGD optimizer —
+no autograd, no deep learning framework.
 
-## 1. Environment
+## What's implemented
 
-You need `conda` (Miniconda or Anaconda). From this folder, run once:
+- **`nn/layers/linear.py`** — `Linear`: `z = xW + b`, Xavier-initialized weights, full
+  forward/backward with in-place gradient buffers.
+- **`nn/activations/`** — `ReLU`, `Sigmoid`, `Softmax`, each with a numerically stable
+  forward pass (no overflow on large-magnitude inputs) and a matching backward pass.
+- **`nn/losses/`** — `CrossEntropyLoss` (binary) and `CategoricalCrossEntropyLoss`
+  (multi-class), both with clipped predictions to avoid `log(0)`.
+- **`nn/optim/sgd.py`** — `SGD`: vanilla `param -= lr * grad`, applied to every parameter
+  a module exposes via `parameters()`.
+- **`main.py`** — wires a `Linear + Sigmoid + CrossEntropyLoss` pipeline together, trains
+  it with SGD on a small AND-gate toy dataset, and reports loss/accuracy — the end-to-end
+  sanity check that every piece works together, not just in isolation.
 
-```bash
-conda env create -f environment.yml
-conda activate iml-formative1
-```
+## Design notes
 
-Re-run `conda activate iml-formative1` in every new terminal. Check it worked:
+- Every module follows the same contract: `forward` computes and caches whatever
+  `backward` will need; `backward` returns the gradient with respect to its input and
+  writes parameter gradients **in place** (`self.dW[...] = ...`, not `self.dW = ...`), so
+  an optimizer that captured a reference to a parameter's gradient array early still sees
+  every update.
+- Every stability-sensitive operation (softmax, sigmoid, both losses) is guarded against
+  overflow or `log(0)` using the max-subtraction / clipping techniques covered in the
+  assignment, verified directly by the numerical-stability tests.
+- `Softmax.backward` and the optimizer's per-parameter loop are the only loops in `nn/` —
+  both are explicitly allowed by the vectorization rubric; every other forward/backward
+  pass is fully vectorized NumPy.
 
-```bash
-python -c "import numpy, pytest; print('numpy', numpy.__version__)"
-pytest --version
-ruff --version
-```
-
-Python 3.11, NumPy 2.x, pytest 8.x, ruff. No deep-learning framework is
-installed or permitted.
-
-## 2. What's provided vs. what you build
-
-**Provided — do not edit:**
-
-```
-guide.pdf            the assignment
-environment.yml      the fixed dependency set
-pyproject.toml       ruff + pytest configuration
-conftest.py          test fixtures and the stage report
-tests/               the public checks (a subset of what is graded)
-```
-
-**You build — everything under `nn/`, plus `main.py`:**
-
-```
-nn/
-  __init__.py                       (empty)
-  module.py                         Chapter 0.5
-  layers/__init__.py  layers/linear.py
-  activations/__init__.py  relu.py  sigmoid.py  softmax.py
-  losses/__init__.py  cross_entropy_loss.py  categorical_cross_entropy_loss.py
-  optim/__init__.py  sgd.py
-main.py                             Chapter 10
-README.md                           your own notes (you may overwrite this file)
-```
-
-Create these yourself, following the guide. Every `__init__.py` starts empty;
-the guide tells you the one import line to add to each as you go.
-
-## 3. Running the checks
-
-Run everything from this folder (the submission root), with the environment
-active. Each chapter ends with a "Validate before moving on" box in the guide —
-run exactly what it says. In general:
+## Running it
 
 ```bash
-pytest                       # all public checks (runs tests/ only)
-pytest tests/layers/test_stage1_vector.py     # one stage
-ruff check nn/               # documentation + style, required from Chapter 1 on
+pytest              # run the full test suite, chapter by chapter
+ruff check nn/       # lint the library code
+ruff check main.py   # lint the training script
+python main.py       # train on the toy AND-gate dataset and print progress
 ```
 
-Each run prints a grouped **Stage** report and writes `stage<N>_report.json`.
-`ruff check nn/` must exit 0 before you move past Chapter 1.
+## Status
 
-## 4. Important
+All chapter tests (Stages 1–10) pass, including the end-to-end convergence test in
+`test_stage10_training_converges.py`. The toy AND-gate pipeline in `main.py` is the
+scaffold the real competition submission will build on, swapping in the actual dataset
+in place of `toy_data()`.
 
-The public `tests/` are a **subset**. Passing them is necessary, not
-sufficient — grading runs a larger private suite plus a short technical
-defense. The guide and the rubric list every property that is checked; read
-both. Do not try to special-case the tests.
-
-## 5. Submitting
-
-Zip the submission root — `nn/`, `main.py`, your `README.md`, and the provided
-files — exactly as laid out above. Do not rename files or move `tests/`.
+**Note on Stage 7:** `tests/activations/test_stage7_softmax_backward.py` imports
+`CategoricalCrossEntropyLoss` (its `test_chained_with_categorical_cross_entropy_is_a_minus_y`
+check, group C — the `a - y` shortcut), which isn't implemented until Stage 8. Running
+Stage 7's test file in isolation before Stage 8 exists will show 3/4 passing with an
+`ImportError` on that one case; this is expected and resolves once
+`nn/losses/categorical_cross_entropy_loss.py` is in place.
